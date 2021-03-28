@@ -1,0 +1,829 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8" />
+    <title>Motor Learning Task</title>
+	<script type="text/javascript" src="phaser/phaser.min_2.84.js"></script>
+	<script src="js/jquery.min.js"></script>
+  <script src="js/jspsych_ML.js"></script>
+  <link rel="stylesheet" href="js/css/jspsych.css"></link>
+
+    <style type="text/css">
+        body {
+            margin: 0;
+        }
+    </style>
+</head>
+<body>
+	<div id="consent">
+		<p class="lead_right">IRB Study #0804000155 (97-763)</p>
+		<h1>INDIANA UNIVERSITY INFORMED CONSENT FOR</h1>
+		<h2>  Concepts and Percepts</h2>
+			<p>You are invited to participate in a research study of how we trasfer what we learn.  We ask that you read this form and ask any questions you may have before agreeing to be in the study.</p>
+			<p>The study is being conducted by Dr. Robert Goldstone in the Department of Psychological and Brain Sciences.</p>
+		<h3>STUDY PURPOSE</h3>
+			<p>The purpose of this study is to better understand the ways that people learn a new task.</p>
+		<h3>NUMBER OF PEOPLE TAKING PART IN THE STUDY:</h3>
+			<p>If you agree to participate, you will be one of approximately 100 subjects who will be participating in this research.</p>
+		<h3>PROCEDURES FOR THE STUDY:</h3>
+			<p>If you agree to be in the study, you will be presented with instructions for a simple task that you will learn and attmept to improve at.</p>
+			<p>The entire session should take a maximum of 45 minutes. You may only participate in the experiment once.</p>
+		<h3>RISKS OF TAKING PART IN THE STUDY:</h3>
+			<p>Participation in this study involves a potential risk of loss of confidentiality. </p>
+		<h3>BENEFITS OF TAKING PART IN THE STUDY:</h3>
+			<p>An understanding of how people change the way they see the world as they learn can help us to find more efficient methods to teach information and develop technologies that increase the speed of learning. You benefit from this experience because you learn something about how an experiment is designed and conducted, what issues are of interest to cognitive scientists, and what kinds of group behaviors emerge when individuals try to reach their goals in an environment that consists largely of other individuals.</p>
+		<h3>ALTERNATIVES TO TAKING PART IN THE STUDY:</h3>
+			<p>An alternative to participating in the study is to choose not to participate.</p>
+		<h3>CONFIDENTIALITY</h3>
+			<p>Efforts will be made to keep your personal information confidential.  We cannot guarantee absolute confidentiality.  Your personal information may be disclosed if required by law. Your identity will be held in confidence in reports in which the study may be published and in databases in which results may be stored.  Organizations that may inspect and/or copy your research records for quality assurance and data analysis include groups such as the study investigator and his/her research associates, the IUB Institutional Review Board or its designees, and (as allowed by law) state or federal agencies, specifically the Office for Human Research Protections (OHRP), etc. who may want to access your research records. </p>
+		<h3>PAYMENT</h3>
+			<p> </p>
+		<h3>CONTACTS FOR QUESTIONS OR PROBLEMS</h3>
+			<p>For questions about the study, contact the researcher Thomas Gorman at tegorman@iu.edu  </p>
+			<p>For questions about your rights as a research participant or to discuss problems, complaints or concerns about a research study, or to obtain information, or offer input, contact the IU Human Subjects Office at (812) 856-4242 or by email at irb@iu.edu </p>
+		<h3>VOLUNTARY NATURE OF STUDY</h3>
+			<p>Taking part in this study is voluntary.  You may choose not to take part or may leave the study at any time.  Leaving the study will not result in any penalty or loss of benefits to which you are entitled and you will be compensated for your time up to that point.  Your decision whether or not to participate in this study will not affect your current or future relations with the investigator(s).</p>
+		<h3>SUBJECT'S CONSENT</h3>
+			<p>By checking below, you acknowledge that you have read and understand the above information, the you are 18 years of age or older, and give your consent to participate in our internet-based study.</p>
+			<p><input type="checkbox" id="consent_checkbox" />I agree to take part in this study.</p>
+			<p>Print this page if you want a copy for your records.</p>
+			<p>Form date: December 18th, 2017</p>
+			<h3>Protocol 0804000155 IRB Approved</h3>
+		<button type="button" onclick="this.blur();start_experiment();">Start Experiment</button>
+	</div>
+
+<script type="text/javascript">
+var game = new Phaser.Game(1000, 900, Phaser.CANVAS, 'phaser-example', { preload: preload, create: create, update: update, render: render });
+
+function preload() {
+		game.load.spritesheet('ball','assets/blue_ball.png', 25,25);
+		game.load.image('target','assets/target2.png',1,20);
+		game.load.image('barrier', 'assets/barrier.png',1,20);
+		game.load.image('intro','assets/MotorLearnInstructions3.png',500,500)
+		game.load.image('benediction','assets/benediction.png',500,500)
+		game.load.image('intro1','assets/intro1.png',500,500)
+		game.load.image('sheet','assets/sheet.png',500,500)
+}
+
+var canvas_width_max=1000;
+var canvas_height_max=900;
+var mouseBody;
+var mouseConstraint;
+var ball;
+var target;
+var targets;
+var barrier;
+var sheet;
+var targetDeviance;
+var logging=true;
+var saved = false;
+var writtenOut = false;
+var gravity = 200;
+var entries=[];
+var style,message, messageSize;
+var messageColor="white";
+
+var entry,entry2;
+
+var condition;
+var flingDistances = [760,610,910,835]; //0 = condition 1, 1&2 = condition 2, 3 = transfer
+var startPositionX;
+var startPositionY;
+var curDistBounds = [];
+var inBounds;
+var mouseInBounds;
+var graphics;
+
+var curTrial = 1;
+var curTrialTrain = 0;
+var curTrialTest = 0;
+var curTrialFinal = 0;
+var totalTrial;
+var outBoundsTrial = 0;
+var barrierTrial = 0;
+var trialType; // 1 = left side of barrier; 11=hit target;  22 = right side of barrier; 99 = outbounds, 44 = hit barrier; 55 = no release
+var ballReleased = false;
+var unReleasedTrial = 0;
+var touchdown = false;
+var trialComplete = false;
+var forceCheck = false;
+var playerReady = false;
+var introComplete = false;
+var intro1Complete = false;
+var intro;
+var intro1;
+var benediction;
+var trainMode;
+var trainTestArray = [1,3]; //1=train, 2=test no feedback, 3 = final test with feedback.
+//var trainTestArray = [2,1,3]; //1=train, 2=test no feedback, 3 = final test with feedback.
+
+var nTrainBlocks = 10; //should match # of 1's above.
+var nTestBlocks = 0; //should match # of 2's above.
+var experimentStage = 0;
+var trainBlockSize = 2; //number of training trials per training block - make sure this is an even number
+var testBlockSize = 3; //number of testing trials per testing block
+var trialArray = [];
+var testArray = [];
+var trialBlock = [];
+var testBlock = [];
+var firstTestBlock = [];
+var finalTestArray = [];
+var finalTestSize = 3;
+var boundDim = 75;
+
+var launchPositionX;
+var launchPositionY;
+var initialVelocityX;
+var initialVelocityY;
+var finalPositionX;
+var xDisplacement;
+var yDisplacement;
+var yTimeTop;
+var yTop;
+var yFall;
+var predTime;
+var predX;
+var predFinalX;
+var actualTime;
+var mousePositionX;
+var mousePositionY;
+
+var timer;
+var pauseTime;
+var timeClickBall;
+var timeClickToLaunch;
+var trialTime;
+var timeAtTrialStart;
+var launchTime;
+var corr;
+var corrFactor = .997;
+var mouse; //1 for mouse, 2 for trackpad, 3 for other.
+var mouseInfo = false;
+
+var today;
+var mm;
+var dd;
+var yyyy;
+
+var debug=true; //don't show IRB form if set to true
+var consented = true;
+
+
+
+var urlvar = jsPsych.data.urlVariables();
+var subjID= urlvar.ResponseID; // this reads in subject's ID automatically from SONOS!  ResponseID must be the name that SONOS gives subjects' ID
+if (subjID===undefined) {subjID = jsPsych.randomization.randomID(8)}; //if ID isn't read in, best to give it a random value
+if (Math.floor(Math.random() * 2) == 0) {categorizationRule = "horizontal"} else {categorizationRule = "vertical"};
+
+if (!debug)
+
+
+  {
+  $("#jspsych-target").hide();
+  function check_consent()
+  {
+  	return document.getElementById('consent_checkbox').checked;
+  }
+
+  function start_experiment(){
+    if(check_consent()){
+  		$('#consent').hide();
+      $("#jspsych-target").show();
+			consented = true;
+    } else {
+  		alert("You must consent to participate in the study by checking the box next to the statement 'I agree to participate in this study.'");
+  	}
+  }
+  }
+  else {
+    $('#consent').hide();
+  }
+
+
+
+
+
+
+function restart(){
+
+	graphics.clear()
+	ball.alpha=1;
+	forceCheck=false;
+	trialComplete = false;
+	playerReady = false;
+	ballReleased = false;
+	saved = false;
+	game.physics.p2.world.constraints=[]
+
+	messageColor="white";
+
+
+	locationX=[];
+	locationY=[];
+
+	ball.body.static=true;
+	ball.body.velocity.x=0;
+	ball.body.velocity.y=0;
+	ball.body.y=800;
+
+	if (trainTestArray[experimentStage]==3) {ball.body.x=flingDistances[finalTestArray[curTrialFinal]]}
+
+	else if (trainMode)
+	{ball.body.x=flingDistances[trialArray[curTrialTrain]]}
+
+	else if (!trainMode){ball.body.x=flingDistances[testArray[curTrialTest]] }
+
+
+		game.world.bringToTop(ball)
+		curDistBounds = [ball.body.x-boundDim,ball.body.x+boundDim,ball.body.y-boundDim,ball.body.y+boundDim];
+		startPositionX = ball.body.x
+		startPositionY = ball.body.y
+}
+
+function keyPress(char) {
+	if (debug && consented) {
+
+	if (char === "y" && trialComplete && curTrialFinal<=finalTestSize && !writtenOut) //for next, after force is applied, and ball trajectory is complete
+	{
+		timeAtTrialStart = game.time.time;
+		curTrial = curTrial +1;
+
+		if (trainTestArray[experimentStage]==3) { curTrialFinal = curTrialFinal+1}
+		else if (trainMode) { curTrialTrain = curTrialTrain+1}
+		else if (!trainMode) { curTrialTest = curTrialTest+1}
+
+		if (trainMode && curTrialTrain%trainBlockSize==0 && trainTestArray[experimentStage]!=3) //check if training block is complete
+		{
+			experimentStage = experimentStage+1; //advance to next stage
+			//curTrial=1;
+
+		}
+
+		if (!trainMode && curTrialTest%testBlockSize==0) //check if testing block is complete
+		{
+			experimentStage = experimentStage+1
+			//curTrial=1;
+		}
+
+			trainMode = trainTestArray[experimentStage]==1 || trainTestArray[experimentStage]==3
+
+				restart();
+	}
+	if (char === "y" && introComplete)
+	{
+		playerReady = true;
+	}
+
+	if (char === "p")
+	{
+
+		if (intro.visible)
+		{
+			intro.exists=false;
+			introComplete = true;
+			message="Use the mouse to drag and flick the ball towards the target. Press Y when you're ready to begin";
+		}
+
+		if (!intro1Complete){
+
+		intro1.exists=false;
+		intro.visible = true;
+		intro1Complete=true;
+	}
+
+	}
+
+if (curTrialFinal>=finalTestSize && trialComplete && !mouseInfo)
+{
+	if (char=="m")
+	{
+		mouse = 1;
+	}
+	if (char=="t")
+	{
+		mouse = 2;
+	}
+	if (char=="o")
+	{
+		mouse=3;
+	}
+
+
+	mouseInfo = true;
+
+	entry={sbjCode:subjID,day:today,condit:condition,mouseType:mouse,mode:trainMode,trial:curTrial,experimentStage:experimentStage,trialType:trialType,positionX:startPositionX,positionY:startPositionY,launchPositionX:launchPositionX,launchPositionY:launchPositionY,
+		initialVelocityX:initialVelocityX,initialVelocityY:initialVelocityY,finalPositionX:finalPositionX,predFinalX:predFinalX,mousePositionX:mousePositionX,mousePositionY:mousePositionY,
+		timeClickBall:timeClickBall,timeClickToLaunch:timeClickToLaunch,timeAtTrialStart:timeAtTrialStart}
+				entries.push(entry);
+
+}
+
+}
+
+}
+
+
+
+function create() {
+
+
+    game.physics.startSystem(Phaser.Physics.P2JS);
+    game.physics.p2.gravity.y = gravity;
+		game.physics.p2.friction = 0; //not clear that this does anything.
+		game.input.onDown.add(click, this);
+		game.input.onUp.add(release, this);
+		game.input.addMoveCallback(move, this);
+
+		var graphics = game.add.graphics();
+		graphics.lineStyle(2, 0x0000FF, 1);
+	 	graphics.beginFill(0xFF700B, 1);
+		window.graphics = graphics;
+		game.world.bringToTop(graphics);
+		style = { font: "38px GeezaPro", fill: "DarkSlateBlue", align: "center",style: "bold"};
+ 		message="";
+ 		trialText = game.add.text(16, 16, 'trial: 1', { fontSize: '38px', fill: '#000' });
+ 		game.input.keyboard.addCallbacks(this, null, null, keyPress);
+
+
+		intro = game.add.sprite(10,100,'intro');
+		intro.visible = false;
+		intro1 = game.add.sprite(10,100,'intro1');
+
+
+		//condition = Math.floor(Math.random()*2)+1 //randomize condition to 1 (constant) or 2 (variable) training.
+
+		condition=2
+
+		trainMode = trainTestArray[experimentStage]==1 || trainTestArray[experimentStage]==3
+
+
+
+
+		finalTestArray = Array.from({length: (finalTestSize)}, () => Math.floor(Math.random() * 1)) //array of all 0's
+		finalTestArray.fill(1,((finalTestSize)*(1/4)));
+		finalTestArray.fill(2,((finalTestSize)*(2/4)));
+		finalTestArray.fill(3,((finalTestSize)*(3/4)));
+		finalTestArray = shuffle(finalTestArray); // testing order for final block
+		testBlock =Array.from({length: (testBlockSize)}, () => Math.floor(Math.random() * 1)) //array of all 0's
+		testBlock.fill(1,((testBlockSize)*(1/3))); //add 1s to testArray.
+		testBlock.fill(2,((testBlockSize)*(2/3))); //add 2s to testArray.
+		firstTestBlock = [0,1,2]; //just 3 trials for first test block.
+		firstTestBlock = shuffle(firstTestBlock);
+
+
+		for (i=0; i<firstTestBlock.length; i++)
+		{
+			testArray.push(firstTestBlock[i])
+		}
+
+		for (i=0; i<nTestBlocks-1;i++) // randomize so that each test block has the right amount of each distance
+		{
+
+			testBlock = shuffle(testBlock); //testBlock now has all 3 distances randomly ordered
+			for (j=0;j<testBlockSize;j++)
+			{
+
+
+					testArray.push(testBlock[j]); //add randomized test block to test array.
+				}
+			}
+
+
+
+		if (condition==2)
+		{
+			trialBlock=Array.from({length: (trainBlockSize)}, () => Math.floor(Math.random() * 1)+1) //array of all 1's
+			trialBlock.fill(2,(trainBlockSize/2));
+			for (i=0;i<nTrainBlocks;i++) //randomize so that each training block has the right amount from each distance.
+			{
+				trialBlock=shuffle(trialBlock);
+				for (j=0;j<trainBlockSize;j++)
+				{
+				trialArray.push(trialBlock[j]);
+				}
+			}
+
+
+		}
+		else {
+
+				trialArray =Array.from({length: (trainBlockSize*nTrainBlocks)}, () => Math.floor(Math.random() * 1)) //array of all 0's
+
+
+		}
+
+		totalTrial = (nTrainBlocks*trainBlockSize)+(nTestBlocks*testBlockSize)+finalTestSize;
+
+
+		mouseBody = new p2.Body();
+    game.physics.p2.world.addBody(mouseBody);
+
+		if (trainMode) {ball=game.add.sprite(flingDistances[trialArray[curTrialTrain]],800,'ball')} //if game starts in training
+
+		if (!trainMode)
+		{ball=game.add.sprite(flingDistances[testArray[curTrialTest]],800,'ball')}  //if game starts in testing
+
+
+
+    var blockCollisionGroup = game.physics.p2.createCollisionGroup();
+
+		targets = game.add.group();
+		targets.enableBody = true;
+		target = targets.create(game.world.width/6, (game.world.height)-37, 'target');
+		game.physics.p2.enable(target);
+		target.body.immovable = true;
+    game.physics.p2.enable([ ball ], false);
+		curDistBounds = [ball.body.x-boundDim,ball.body.x+boundDim,ball.body.y-boundDim,ball.body.y+boundDim];
+
+		ball.enableBody = true;
+		ball.body.fixedRotation = true;
+		ball.scale.setTo(2,2);
+		ball.body.setCircle(12);
+		ball.body.setCollisionGroup(blockCollisionGroup);
+		ball.body.collides([blockCollisionGroup]);
+		ball.bringToTop()
+		ball.body.damping=0; //necessary for x velocity to remain constant.
+		ball.body.static=true;
+		startPositionX = ball.body.x
+		startPositionY = ball.body.y
+
+	 barrier = game.add.sprite(game.world.width/2, 800, 'barrier');
+ 	 game.physics.p2.enable(barrier);
+ 	 barrier.enableBody=true;
+ 	 barrier.physicsBodyType=Phaser.Physics.P2JS;
+   barrier.body.clearShapes();
+ 	 barrier.body.setRectangle(53, 238,0,0);
+   barrier.anchor.setTo(0.5, 0.5);
+ 	 barrier.body.static=true;
+	 barrier.body.setCollisionGroup(blockCollisionGroup);
+	 barrier.body.collides([blockCollisionGroup]);
+
+	 this.game.scale.fullScreenScaleMode = Phaser.ScaleManager.SHOW_ALL;
+	 this.game.scale.scaleMode = Phaser.ScaleManager.SHOW_ALL;
+	 this.game.scale.refresh();
+
+	 canvas_width = window.innerWidth * window.devicePixelRatio;
+	 canvas_height = window.innerHeight * window.devicePixelRatio;
+	 aspect_ratio = canvas_width / canvas_height;
+	 if (aspect_ratio > 1) scale_ratio = canvas_height / canvas_height_max;
+	 else scale_ratio = canvas_width / canvas_width_max;
+
+
+	 sheet = game.add.sprite(0,0,'sheet');
+	 sheet.bringToTop();
+
+
+
+	 //game.physics.p2.updateBoundsCollisionGroup();
+
+
+ today = new Date();
+ dd = today.getDate();
+ mm = today.getMonth()+1; //January is 0!
+ yyyy = today.getFullYear();
+if(dd<10) {
+    dd = '0'+dd
+}
+if(mm<10) {
+    mm = '0'+mm
+}
+today = mm + '/' + dd + '/' + yyyy;
+
+  }
+
+function click(pointer) {
+
+	if (inBounds && playerReady && !ballReleased) {
+
+		  var bodies = game.physics.p2.hitTest(pointer.position, [ ball.body ]);
+    // p2 uses different coordinate system, so convert the pointer position to p2's coordinate system
+    var physicsPos = [game.physics.p2.pxmi(pointer.position.x), game.physics.p2.pxmi(pointer.position.y)];
+
+     if (bodies.length)
+    {
+				ball.body.static=false;
+				forceCheck = true;
+				timeClickBall = game.time.now;
+
+        var clickedBody = bodies[0];
+        var localPointInBody = [0, 0];
+        clickedBody.toLocalFrame(localPointInBody, physicsPos);
+         mouseConstraint = this.game.physics.p2.createRevoluteConstraint(mouseBody, [0, 0], clickedBody, [game.physics.p2.mpxi(localPointInBody[0]), game.physics.p2.mpxi(localPointInBody[1]) ]);
+				 mouseConstraint.setStiffness(15);
+				 mouseConstraint.setRelaxation(2);
+    }
+}
+}
+function release() {
+	if (inBounds && !ball.body.static) {
+    game.physics.p2.removeConstraint(mouseConstraint);
+		timeClickToLaunch = game.time.now - timeClickBall;
+		launchTime = game.time.now;
+		ballReleased = true;
+		launchPositionX = ball.body.x;
+		launchPositionY = ball.body.y;
+		initialVelocityX = ball.body.velocity.x;
+		initialVelocityY = ball.body.velocity.y;
+		mousePositionX = game.physics.p2.mpxi(mouseBody.position[0]);
+		mousePositionY = game.physics.p2.mpxi(mouseBody.position[1]);
+
+		yDisplacement = 875 - launchPositionY;
+		yTimeTop = -initialVelocityY/gravity;
+		yTop = -((initialVelocityY)*(yTimeTop) - ((.5)*(-gravity)*(yTimeTop*yTimeTop)));
+		yFall =  Math.sqrt((yTop+yDisplacement)/(.5*gravity))
+		predTime = (yTimeTop) + yFall;
+		predX = -(initialVelocityX*predTime)*corrFactor;
+		predFinalX = launchPositionX - predX;
+		//corr = predX/xDisplacement;
+
+	}
+
+}
+function move(pointer) {
+    mouseBody.position[0] = game.physics.p2.pxmi(pointer.position.x);
+    mouseBody.position[1] = game.physics.p2.pxmi(pointer.position.y);
+}
+
+function update() {
+
+//	if (!debug && consented) //original
+	if (debug && consented){
+
+	sheet.exists = false;
+
+	inBounds = ball.body.x<curDistBounds[1] && ball.body.x>curDistBounds[0] && ball.body.y<curDistBounds[3] && ball.body.y>curDistBounds[2];
+	//inBounds = true;
+	touchdown = ball.body.y>=874;
+	trainMode = trainTestArray[experimentStage]==1 || trainTestArray[experimentStage]==3
+	trialText = 'Trial: ' + curTrial;
+
+
+
+
+
+
+
+
+
+	if (playerReady && (curTrial<=totalTrial) && !forceCheck && trainMode)
+	{
+		message="Use the mouse to drag and flick the ball towards the target  (Position:" + startPositionX + ")";
+		graphics.drawRect(curDistBounds[0],curDistBounds[2],150,150);
+		trialText = 'Trial: ' + curTrial;
+	}
+
+	if (playerReady && (curTrial<=totalTrial) && !forceCheck && !trainMode)
+	{
+		message="Use the mouse to drag and flick the ball towards the target. You will NOT see the ball trajectory.";
+		graphics.drawRect(curDistBounds[0],curDistBounds[2],150,150);
+		trialText = 'Trial: ' + curTrial;
+	}
+
+
+
+	if (touchdown && forceCheck && trainMode && (curTrial<=totalTrial) && ball.body.x+(ball.width/2)<barrier.body.x-(barrier.width/2) ) //check if trial is complete
+		{
+
+			graphics.clear();
+			ball.body.velocity.x=0
+			ball.body.velocity.y=0
+			ball.body.static = true;
+			ball.body.y=875;
+
+			finalPositionX=ball.body.x;
+			//xDisplacement = launchPositionX - finalPositionX;
+			//actualTime = -xDisplacement/initialVelocityX;
+
+			targetDeviance = Phaser.Math.distance(ball.body.x,ball.body.y,target.body.center.x,target.body.center.y);
+			graphics.lineStyle(2,0xff0000,1)
+			graphics.moveTo(ball.body.x,ball.body.y)
+			graphics.lineTo(target.body.center.x,target.body.center.y)
+			game.world.bringToTop(graphics)
+			trialComplete=true;
+			trialText = 'Trial: ' + curTrial;
+
+			if (target.overlap(ball))
+			{
+				message="You hit the target! " + Phaser.Math.roundTo(targetDeviance) + " units away from the target center. Press Y to start the next trial";
+				trialType = 11;
+			}
+			else{
+			message="You were " + Phaser.Math.roundTo(targetDeviance) + " units away from the target center. Press Y to start the next trial";
+			trialType = 1;
+			}
+			messageColor="cyan";
+			trialText = 'Trial: ' + curTrial;
+
+			if (!saved){
+			entry={sbjCode:subjID,day:today,condit:condition,mode:trainMode,trial:curTrial,experimentStage:experimentStage,trialType:trialType,positionX:startPositionX,positionY:startPositionY,launchPositionX:launchPositionX,launchPositionY:launchPositionY,
+				initialVelocityX:initialVelocityX,initialVelocityY:initialVelocityY,finalPositionX:finalPositionX,predFinalX:predFinalX,mousePositionX:mousePositionX,mousePositionY:mousePositionY,
+				timeClickBall:timeClickBall,timeClickToLaunch:timeClickToLaunch,timeAtTrialStart:timeAtTrialStart}
+			entries.push(entry);
+			saved=true;
+				}
+		}
+
+	if (forceCheck && ball.inWorld && !barrier.overlap(ball) && !inBounds && !trainMode) //make ball trajectory invisible during testing.
+	{
+		ball.alpha=0;
+		//game.time.events.add(Phaser.Timer.SECOND * 4, null, null);
+	}
+
+	if (!trainMode && !inBounds && forceCheck)
+	{
+		// add delay code
+		//pauseTime = game.time.now;
+		//timer = game.time.now
+		trialType = 77;
+
+
+		//wait(1000);
+
+		//game.time.events.add(Phaser.Timer.SECOND * 4, update, this);
+		trialComplete=true;
+		finalPositionX=ball.body.x;
+		message="Trial Complete! Press Y to start the next trial"
+		messageColor="red";
+
+		if (!saved){
+			entry={sbjCode:subjID,day:today,condit:condition,mouseType:mouse,mode:trainMode,trial:curTrial,experimentStage:experimentStage,trialType:trialType,positionX:startPositionX,positionY:startPositionY,launchPositionX:launchPositionX,launchPositionY:launchPositionY,
+				initialVelocityX:initialVelocityX,initialVelocityY:initialVelocityY,finalPositionX:finalPositionX,predFinalX:predFinalX,mousePositionX:mousePositionX,mousePositionY:mousePositionY,
+				timeClickBall:timeClickBall,timeClickToLaunch:timeClickToLaunch,timeAtTrialStart:timeAtTrialStart}
+		entries.push(entry);
+		saved=true;
+			}
+
+	}
+
+	if (forceCheck && !ball.inWorld && trainMode){
+		trialComplete=true;
+		message="You threw the ball out of bounds! Be careful! Press Y to start the next trial"
+		messageColor="red";
+		trialText = 'Trial: ' + curTrial;
+		trialType = 99;
+		finalPositionX=ball.body.x;
+
+		if (!saved){
+			entry={sbjCode:subjID,day:today,condit:condition,mouseType:mouse,mode:trainMode,trial:curTrial,experimentStage:experimentStage,trialType:trialType,positionX:startPositionX,positionY:startPositionY,launchPositionX:launchPositionX,launchPositionY:launchPositionY,
+				initialVelocityX:initialVelocityX,initialVelocityY:initialVelocityY,finalPositionX:finalPositionX,predFinalX:predFinalX,mousePositionX:mousePositionX,mousePositionY:mousePositionY,
+				timeClickBall:timeClickBall,timeClickToLaunch:timeClickToLaunch,timeAtTrialStart:timeAtTrialStart}
+					entries.push(entry);
+		saved=true;
+			}
+	}
+
+	if (forceCheck && barrier.overlap(ball) && trainMode){
+		trialComplete=true;
+		message="You hit the barrier! Be careful! Press Y to start the next trial"
+		messageColor="red";
+		ball.body.velocity.x=0
+		ball.body.velocity.y=0
+		ball.body.static = true;
+		finalPositionX=ball.body.x;
+		trialText = 'Trial: ' + curTrial;
+		trialType = 44;
+
+		if (!saved){
+			entry={sbjCode:subjID,day:today,condit:condition,mouseType:mouse,mode:trainMode,trial:curTrial,experimentStage:experimentStage,trialType:trialType,positionX:startPositionX,positionY:startPositionY,launchPositionX:launchPositionX,launchPositionY:launchPositionY,
+				initialVelocityX:initialVelocityX,initialVelocityY:initialVelocityY,finalPositionX:finalPositionX,predFinalX:predFinalX,mousePositionX:mousePositionX,mousePositionY:mousePositionY,
+				timeClickBall:timeClickBall,timeClickToLaunch:timeClickToLaunch,timeAtTrialStart:timeAtTrialStart}
+						entries.push(entry);
+		saved=true;
+			}
+	}
+
+	if (forceCheck && touchdown && !barrier.overlap(ball) && ball.body.x-(ball.width/2)>barrier.body.x+(barrier.width/2) && trainMode)
+	{
+		trialComplete=true;
+		ball.body.static=true;
+		ball.body.velocity.x=0
+		ball.body.velocity.y=0
+		finalPositionX=ball.body.x;
+		message="You didn't make it over the barrier, try flinging the with more force. Press Y to start the next trial"
+		messageColor="red";
+		trialText = 'Trial: ' + curTrial;
+		trialType = 22;
+
+		if (!saved){
+			entry={sbjCode:subjID,day:today,condit:condition,mouseType:mouse,mode:trainMode,trial:curTrial,experimentStage:experimentStage,trialType:trialType,positionX:startPositionX,positionY:startPositionY,launchPositionX:launchPositionX,launchPositionY:launchPositionY,
+				initialVelocityX:initialVelocityX,initialVelocityY:initialVelocityY,finalPositionX:finalPositionX,predFinalX:predFinalX,mousePositionX:mousePositionX,mousePositionY:mousePositionY,
+				timeClickBall:timeClickBall,timeClickToLaunch:timeClickToLaunch,timeAtTrialStart:timeAtTrialStart }
+						entries.push(entry);
+		saved=true;
+			}
+
+
+	}
+
+	if (!inBounds && playerReady && !ballReleased){
+		trialComplete=true;
+		ball.body.velocity.x=0
+		ball.body.velocity.y=0
+		ball.body.static = true;
+		finalPositionX=ball.body.x;
+		message="You must release the ball while it is stil inside the orange square! Press Y to start the next trial"
+		messageColor="red";
+		trialText = 'Trial: ' + curTrial;
+		trialType = 55;
+
+		if (!saved){
+			entry={sbjCode:subjID,day:today,condit:condition,mouseType:mouse,mode:trainMode,trial:curTrial,experimentStage:experimentStage,trialType:trialType,positionX:startPositionX,positionY:startPositionY,launchPositionX:launchPositionX,launchPositionY:launchPositionY,
+				initialVelocityX:initialVelocityX,initialVelocityY:initialVelocityY,finalPositionX:finalPositionX,predFinalX:predFinalX,mousePositionX:mousePositionX,mousePositionY:mousePositionY,
+				timeClickBall:timeClickBall,timeClickToLaunch:timeClickToLaunch,timeAtTrialStart:timeAtTrialStart}
+						entries.push(entry);
+		saved=true;
+			}
+	}
+
+
+
+	if (curTrialFinal>=finalTestSize && trialComplete && !mouseInfo)
+	{
+	playerReady = false;
+	message=" If you completed the task using a mouse press M; a trackpad press T; other press O ";
+	messageColor="red";
+
+
+	}
+
+
+	if (curTrialFinal>=finalTestSize && trialComplete && mouseInfo)
+	{
+		message="";
+		messageColor="cyan";
+		playerReady = false;
+		if (logging && !writtenOut) {save_data(entries)};
+		benediction = game.add.sprite(10,100,'benediction');
+	}
+}
+
+	}
+
+function render() {
+	if(debug && consented){
+
+	if (curTrialFinal>=finalTestSize && trialComplete)
+	{
+		style = { font: "100px GeezaPro", fill: "DarkSlateBlue", align: "center",style: "bold"};
+		messageSize=100;
+		game.debug.text( message,150,200,messageColor,messageSize,{ fontSize: '38px', fill: '#000' });
+
+	}
+	else {
+		game.debug.text( message,20,20,messageColor,messageSize);
+		game.debug.text( trialText,37,37,messageColor,messageSize);
+
+	}
+}
+
+}
+
+function shuffle(array) {
+  var currentIndex = array.length, temporaryValue, randomIndex;
+
+  // While there remain elements to shuffle...
+  while (0 !== currentIndex) {
+
+    // Pick a remaining element...
+    randomIndex = Math.floor(Math.random() * currentIndex);
+    currentIndex -= 1;
+
+    // And swap it with the current element.
+    temporaryValue = array[currentIndex];
+    array[currentIndex] = array[randomIndex];
+    array[randomIndex] = temporaryValue;
+  }
+
+  return array;
+}
+
+function wait(ms){
+   var start = new Date().getTime();
+   var end = start;
+   while(end < start + ms) {
+     end = new Date().getTime();
+  }
+}
+
+function save_data(data) {
+
+		writtenOut = true;
+    $.ajax({
+      type: 'post',
+      cache: false,
+      url: 'php/write_data.php',
+      data: {
+        "table": "MotorLearn3",
+        "new_data": JSON.stringify(data)
+      }
+    });
+		benediction = game.add.sprite(10,100,'benediction');
+		graphics.clear();
+
+  }
+
+
+
+</script>
+</body>
+</html>
