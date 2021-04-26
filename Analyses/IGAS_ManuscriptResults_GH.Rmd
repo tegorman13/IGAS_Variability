@@ -1,0 +1,420 @@
+---
+title: "MotorLearn_PosterPlots"
+output: pdf_document
+---
+
+
+# load relevant data
+```{r, include=FALSE, echo=FALSE}
+source('IGAS_ProcessFunctions.R')
+
+#rm(list=ls())
+###### data loading and organization #######
+
+# load the processed data from experiment 1 and 2
+e1 <- readRDS("data/igas_e1_cleanedData-final.rds")%>% mutate(initialVelocityX=X_Velocity,initialVelocityY=Y_Velocity)
+e2<- readRDS('data/igas_e2_cleanedData-final.rds')%>% mutate(initialVelocityX=X_Velocity,initialVelocityY=Y_Velocity)
+# load subject similarity data - computed with the IGAS model in 'IGAS-SimModel.R'
+e2_sim <- readRDS('data/IGAS_Similarity-Performance.rds')
+
+options(contrasts = c("contr.sum", "contr.poly"))
+defaultContrasts = options()$contrasts
+theme_set(theme_classic())
+
+dodge <- position_dodge(width = 0.9)
+e2GrpPos <- c("400","500","625","675","800","900")
+e2Grp <- paste("Constant","Constant", "Constant","Constant","Constant","Constant", "Varied")
+e2Labels <- paste(c("400\n Constant","500\n Constant","625\n Constant","675\n Constant",
+                   "800\n Constant","900\n Constant","500-800\n Varied"),sep="")
+
+e1Pos <- c("610","760","835","910")
+e1Var <- paste("Varied Train Position","Constant Train Position", "Novel Position", "Varied Training Position")
+e1Labels<- paste(c("610\n Varied Trained","760\n Constant Trained","835\n Novel Location","910\n Varied Trained"),sep="")
+```
+
+## Experiment 1 
+
+# Training - Experiment 1
+```{r}
+
+exp1TrainPosition <- e1 %>% filter(stage!="Transfer",mode==1) %>%ungroup() %>% 
+  group_by(sbjCode,Group,conditType,trainHalf,positionX) %>% 
+  summarise(MeanTargetDistance=mean(AbsDistFromCenter))
+
+exp1Train <- e1 %>% filter(stage!="Transfer",mode==1)  %>% group_by(Group,sbjCode) %>%
+  group_by(sbjCode,Group,conditType,trainHalf) %>% 
+  summarise(MeanTargetDistance=mean(AbsDistFromCenter))
+
+exp1TrainPosition %>% ggplot(aes(x=positionX,y=MeanTargetDistance))+
+  geom_bar(aes(group=trainHalf,fill=trainHalf),stat="summary",fun=mean,position=dodge)+
+  facet_wrap(~conditType,ncol=2)+
+  stat_summary(aes(x=positionX,group=trainHalf),fun.data=mean_se,geom="errorbar",position=dodge,width=.8)+
+  ylab("Mean Distance From Center Of Target")+
+  xlab("Training Location(s)")+theme(plot.title = element_text(hjust = 0.5))+
+  guides(fill=guide_legend(title="Training Stage"))+theme(legend.title.align=.25)
+
+
+model<-ezANOVA(exp1Train,dv=MeanTargetDistance,within=c(trainHalf),between=Group,wid=sbjCode,type=3);show(model)
+
+aggregate(MeanTargetDistance ~ conditType + positionX,data=exp1TrainPosition,mean)
+
+                            
+```
+
+
+#Experiment 1 Testing Phase
+```{r}
+
+exp1.Test <- e1 %>% filter(stage=="Transfer") %>% select(-trainHalf)%>% group_by(positionX) %>% 
+  mutate(globalAvg=mean(AbsDistFromCenter),globalSd=sd(AbsDistFromCenter)) %>% 
+  group_by(sbjCode,positionX) %>% 
+  mutate(scaledDev = scaleVar(globalAvg,globalSd,AbsDistFromCenter)) %>%
+  ungroup() %>% group_by(sbjCode,conditType,positionX,ThrowPosition) %>%
+summarise(MeanTargetDeviance = mean(AbsDistFromCenter),MeanScaleDev = mean(scaledDev),.groups="keep")%>% as.data.frame()
+
+exp1.Test2 <- exp1.Test %>% group_by(sbjCode,conditType) %>% 
+  summarise(MeanTargetDeviance = mean(MeanTargetDeviance),MeanScaleDev = mean(MeanScaleDev),.groups="keep")%>% as.data.frame()
+
+#manuscript plot
+exp1.Test %>% ggplot(aes(x=positionX,y=MeanTargetDeviance,group=conditType,fill=conditType))+
+  geom_bar(stat="summary",fun=mean,position=dodge)+ stat_summary(fun.data=mean_se,geom="errorbar",position=dodge,width=.5)+ylab("Mean Distance From Center Of Target") +xlab("Testing Location")+theme(plot.title = element_text(hjust = 0.5))+guides(fill=guide_legend(title="Training Condition"))+theme(legend.title.align=.25)+scale_x_discrete(name="Testing Location",labels=e1Labels)
+
+m1 <- exp1.Test %>% anova_test(dv=MeanTargetDeviance,between=conditType,within=positionX,wid=sbjCode,type=3); show(m1)
+
+
+
+cnames=c("Condition","610","760","835","910","")
+test= exp1.Test %>% rename(Condition="conditType") %>% group_by(Condition,positionX) %>% 
+  summarise(Mean=round(mean(MeanTargetDeviance),2),sd=round(sd(MeanTargetDeviance),2)) 
+test=test %>% group_by(Condition) %>% mutate(GroupAvg=round(mean(Mean),2),groupSd=round(sd(Mean),2))
+test = test %>% mutate(msd=paste(Mean,"(",sd,")",sep=""),gsd=paste(GroupAvg,"(",groupSd,")",sep="")) %>% select(Condition,positionX,msd,gsd)%>%pivot_wider(names_from = positionX,values_from=c(msd,gsd))
+test=test[,1:6] %>% as.data.frame()
+colnames(test) <- cnames
+stargazer(test,type="text",summary=FALSE,rownames=FALSE)
+
+
+```
+
+# Experiment 1 Identity Contrast (760) and novel position contrast (835)
+```{r}
+exp1.Test %>% filter(ThrowPosition=="Constant Location") %>% anova_test(dv=MeanTargetDeviance,between=conditType,wid=sbjCode,type=3)
+exp1.Test %>% filter(ThrowPosition=="Novel Location") %>% anova_test(dv=MeanTargetDeviance,between=conditType,wid=sbjCode,type=3)
+```
+
+
+
+
+
+
+
+### Experiment 2 ###
+
+
+
+# Experiment 2 - calculate various distances between transfer throw position and training throw position
+```{r,echo=FALSE}
+
+exp2TrainPosition <- e2  %>% filter(stage!="Transfer") %>%ungroup() %>% 
+  group_by(sbjCode,Group2,conditType,trainHalf,positionX) %>% 
+  summarise(MeanTargetDistance=mean(AbsDistFromCenter))%>% as.data.frame()
+
+exp2Train <- e2  %>% filter(stage!="Transfer")  %>% 
+  group_by(sbjCode,Group2,conditType,trainHalf) %>% 
+  summarise(MeanTargetDistance=mean(AbsDistFromCenter)) %>% as.data.frame()
+
+transfer <- filter(e2, stage=="Transfer") %>% droplevels() %>% select(-trainHalf,-initialVelocityY,ThrowPosition2)%>% ungroup()
+transfer <- transfer %>% group_by(positionX) %>% mutate(globalAvg=mean(AbsDistFromCenter),globalSd=sd(AbsDistFromCenter)) %>% 
+  group_by(sbjCode,positionX) %>% mutate(scaledDev = scaleVar(globalAvg,globalSd,AbsDistFromCenter)) %>%ungroup()
+
+transfer <- transfer %>% group_by(sbjCode,positionX) %>% mutate(ind=1,testPosIndex=cumsum(ind),posN=max(testPosIndex)) %>%
+  select(-ind) %>% mutate(testHalf = case_when(testPosIndex<15 ~"1st Half",testPosIndex>=15 ~"2nd Half")) %>% convert_as_factor(testHalf)
+
+variedTest <- transfer %>% filter(condit==7) %>% mutate(extrapolate=ifelse(positionX=="900" | positionX=="400","extrapolation","interpolation")) 
+constantTest <- transfer %>% filter(condit!=7) %>% mutate(extrapolate=ifelse(distFromTrain==0,"interpolation","extrapolation"))
+
+transfer <- rbind(variedTest,constantTest)
+transfer<- transfer %>% mutate(novel=ifelse(distFromTrain3==0,"trainedLocation","novelLocation"))%>% convert_as_factor(novel,extrapolate)
+
+transfer <- transfer %>% relocate(sbjCode,condit2,Group,conditType2,stage,trial,novel,extrapolate,positionX,AbsDistFromCenter,globalAvg,globalSd,scaledDev,distFromTrain3) %>% ungroup()
+
+
+# novelAll <- transfer %>% filter(distFromTrain!=0, distFromTrain3!=0) %>% select(-globalAvg,-globalSd,-scaledDev)%>% droplevels() %>% ungroup()
+# novelAll <- novelAll %>% group_by(positionX) %>%
+#  mutate(globalAvg=mean(AbsDistFromCenter),globalSd=sd(AbsDistFromCenter)) %>% 
+#   group_by(sbjCode,positionX) %>% mutate(scaledDev = scaleVar(globalAvg,globalSd,AbsDistFromCenter)) %>%ungroup()
+
+novelAll <- transfer %>% filter(distFromTrain!=0, distFromTrain3!=0)
+novelAllMatched <- novelAll %>% filter(condit!=5,condit!=2)
+
+
+constantIden <- transfer %>% filter(condit !=7,distFromTrain==0) # only constant groups from their training position
+variedTest <- transfer %>% filter(condit==7) # only varied testing
+variedVsIden <- rbind(constantIden,variedTest) # all varied combined with constant identity
+
+
+variedNovel <- variedTest %>% filter(distFromTrain3 !=0) # removes 500 and 800 from varied
+constantIden2 <- transfer %>% filter(condit !=7,condit!=5,condit!=2,distFromTrain==0) # only constant groups from training position 400,625,675,900
+variedVsNovelIden <- rbind(constantIden2,variedNovel) # novel positions for varied, trained for constant
+
+exp2.Test <- transfer %>%group_by(sbjCode,conditType,positionX,ThrowPosition)%>%
+  summarise(MeanTargetDeviance = mean(AbsDistFromCenter,trim=.05),MeanScaledDev=mean(scaledDev,trim=.05)) %>%ungroup() %>% as.data.frame()
+
+exp2.Test2 <- exp2.Test %>% group_by(sbjCode,conditType)%>%
+  summarise(MeanTargetDeviance = mean(MeanTargetDeviance),MeanScaledDev=mean(MeanScaledDev)) %>%ungroup() %>% as.data.frame()
+
+exp2.Test7 <- transfer %>%group_by(Group2,sbjCode,positionX,Group,conditType,ThrowPosition4) %>% 
+  summarise(MeanTargetDeviance = mean(AbsDistFromCenter,trim=.05),MeanScaledDev=mean(scaledDev,trim=.05)) %>% as.data.frame()
+
+exp2.Test7.agg <- exp2.Test7  %>%group_by(Group2,sbjCode,Group,conditType) %>% 
+  summarise(MeanTargetDeviance = mean(MeanTargetDeviance),MeanScaledDev=mean(MeanScaledDev)) %>% as.data.frame()
+
+exp2.Test7.agg2 <- exp2.Test7  %>%group_by(sbjCode,conditType) %>% 
+  summarise(MeanTargetDeviance = mean(MeanTargetDeviance),MeanScaledDev=mean(MeanScaledDev)) %>% as.data.frame()
+
+```
+
+
+# Training - Experiment 2
+```{r}
+
+exp2TrainPosition %>% ggplot(aes(x=trainHalf,y=MeanTargetDistance))+
+  geom_bar(aes(group=trainHalf,fill=trainHalf),stat="summary",position=dodge,fun="mean")+
+  stat_summary(aes(x=trainHalf,group=trainHalf),fun.data=mean_se,geom="errorbar",position=dodge,width=.8)+facet_wrap(~conditType,ncol=2)+
+  ylab("Mean Distance From Center Of Target") +xlab("Training Stage")+theme(plot.title = element_text(hjust = 0.5))+guides(fill=guide_legend(title="Training Condition"))+theme(legend.title.align=.25)
+
+exp2TrainPosition %>% ggplot(aes(x=positionX,y=MeanTargetDistance))+
+  geom_bar(aes(group=trainHalf,fill=trainHalf),stat="summary",position=dodge,fun="mean")+
+  facet_wrap(~conditType,ncol=2)+stat_summary(aes(x=positionX,group=trainHalf),fun.data=mean_se,geom="errorbar",position=dodge,width=.8)+ylab("Mean Distance From Center Of Target") +xlab("Training Location(s)")+theme(plot.title = element_text(hjust = 0.5))+guides(fill=guide_legend(title="Training Stage"))+theme(legend.title.align=.25)
+
+model<-ezANOVA(exp2Train,dv=MeanTargetDistance,within=c(trainHalf),between=conditType,wid=sbjCode,type=3);show(model)
+
+model<-exp2Train %>% anova_test(dv=MeanTargetDistance,within=trainHalf,between=conditType,wid=sbjCode,type=3);show(model)
+
+
+t<- e2  %>% filter(stage!="Transfer") %>%ungroup()  %>% rename(Condition="conditType") %>% group_by(Condition,ThrowPosition) %>% 
+  summarise(Mean=round(mean(AbsDistFromCenter),2),sd=round(sd(AbsDistFromCenter),2),msd=paste(Mean,"(",sd,")",sep=""),.groups="keep") %>%
+   select(-Mean,-sd) %>% spread(ThrowPosition,msd) %>% as.data.frame() %>%stargazer(.,type="text",summary=FALSE,rownames = FALSE)
+t<- e2  %>% filter(stage!="Transfer") %>%ungroup()  %>% rename(Condition="conditType") %>% group_by(Group,ThrowPosition) %>% 
+  summarise(Mean=round(mean(AbsDistFromCenter),2),sd=round(sd(AbsDistFromCenter),2),msd=paste(Mean,"(",sd,")",sep=""),.groups="keep") %>%
+   select(-Mean,-sd) %>% spread(ThrowPosition,msd) %>% as.data.frame() %>%stargazer(.,type="text",summary=FALSE,rownames = FALSE)
+
+```
+
+
+
+
+
+
+#Experiment 2 - Testing Phase - General Comparison
+```{r,fig.height=6,fig.width=7}
+# manuscript plot
+exp2.Test %>% ggplot(aes(x=ThrowPosition,y=MeanTargetDeviance,group=conditType,fill=conditType))+geom_bar(stat="summary",position=dodge,fun.y="mean")+ stat_summary(fun.data=mean_se,geom="errorbar",position=dodge,width=.5)+ylab("Mean Distance From Center Of Target") +xlab("Testing Location")+theme(plot.title = element_text(hjust = 0.5))+guides(fill=guide_legend(title="Training Condition"))+theme(legend.title.align=.25)
+
+# manuscript analysis
+mg2=exp2.Test2 %>% anova_test(dv=MeanScaledDev,between=conditType,wid=sbjCode,type=3);show(mg2) 
+
+cnames=c("Condition","400","500","625","675","800","900","")
+test= exp2.Test %>% rename(Condition="conditType") %>% group_by(Condition,ThrowPosition) %>% 
+  summarise(Mean=round(mean(MeanTargetDeviance),2),sd=round(sd(MeanTargetDeviance),2)) 
+test=test %>% group_by(Condition) %>% mutate(GroupAvg=round(mean(Mean),2),groupSd=round(sd(Mean),2))
+test = test %>% mutate(msd=paste(Mean,"(",sd,")",sep=""),gsd=paste(GroupAvg,"(",groupSd,")",sep="")) %>% select(Condition,ThrowPosition,msd,gsd)%>%pivot_wider(names_from = ThrowPosition,values_from=c(msd,gsd))
+test=test[,1:8] %>% as.data.frame()
+colnames(test) <- cnames
+stargazer(test,type="text",summary=FALSE,rownames=FALSE)
+
+```
+
+
+
+# Experiment 2 - Testing Showing all 7 Groups
+```{r}
+
+exp2.Test7 %>% ggplot(aes(x=positionX,y=MeanTargetDeviance,group=Group2,fill=Group2))+geom_bar(stat="summary",position=position_dodge(),fun.y="mean")+ stat_summary(fun.data=mean_se,geom="errorbar",position=position_dodge())+ylab("Mean Distance From Center Of Target") +xlab("Testing Location")+theme(plot.title = element_text(hjust = 0.5))+guides(fill=guide_legend(title="Training Position"))+theme(legend.title.align=.25)
+
+exp2.Test7 %>% 
+  ggplot(aes(x=Group,y=MeanTargetDeviance,group=conditType,fill=conditType))+
+  geom_bar(stat="summary",position=position_dodge(),fun="mean")+ 
+  stat_summary(fun.data=mean_se,geom="errorbar",position=position_dodge())+
+  facet_wrap(~ThrowPosition4)+
+  ylab("Mean Distance From Center Of Target")+theme(plot.title = element_text(hjust = 0.5))+
+  guides(fill=guide_legend(title="Training Condition"))+
+  theme(legend.title.align=.25)+
+  scale_x_discrete(name=" Training Group",labels=e2Labels)
+
+exp2.Test7.agg %>% ggplot(aes(x=Group,y=MeanTargetDeviance,group=conditType,fill=conditType))+geom_bar(stat="summary",position=dodge,fun="mean")+ stat_summary(fun.data=mean_se,geom="errorbar",position=dodge,width=.5)+ylab("Mean Distance From Center Of Target") +
+  theme(plot.title = element_text(hjust = 0.5))+guides(fill=guide_legend(title="Training Condition"))+theme(legend.title.align=.25)+scale_x_discrete(name="Training Group",labels=e2Labels)
+
+
+```
+
+
+
+
+# Experiment 2  - only novel positions
+```{r}
+sum.novelAll <- novelAll %>% group_by(sbjCode,conditType,positionX) %>% 
+  summarise(MeanTargetDev=mean(AbsDistFromCenter,trim=.05),MeanScaledDev=mean(scaledDev,trim=.05),.groups="keep") %>% as.data.frame()
+
+sum.novelAll2 <- sum.novelAll %>% group_by(sbjCode,conditType) %>% 
+  summarise(MeanTargetDev=mean(MeanTargetDev),MeanScaledDev=mean(MeanScaledDev),.groups="keep") %>% as.data.frame()
+
+mn2=sum.novelAll2 %>% anova_test(dv=MeanScaledDev,between=conditType,wid=sbjCode,type=3);show(mn2)
+
+
+
+
+cnames=c("Condition","400","500","625","675","800","900","")
+test=sum.novelAll %>% rename(Condition="conditType") %>% group_by(Condition,positionX) %>% 
+  summarise(Mean=round(mean(MeanTargetDev),2),sd=round(sd(MeanTargetDev),2)) 
+test=test %>% group_by(Condition) %>% mutate(GroupAvg=round(mean(Mean),2),groupSd=round(sd(Mean),2))
+test = test %>% mutate(msd=paste(Mean,"(",sd,")",sep=""),gsd=paste(GroupAvg,"(",groupSd,")",sep="")) %>% select(Condition,positionX,msd,gsd)%>%pivot_wider(names_from = positionX,values_from=c(msd,gsd))
+test=test[,1:8] %>% as.data.frame()
+colnames(test) <- cnames
+stargazer(test,type="text",summary=FALSE,rownames=FALSE)
+
+
+##################
+
+
+```
+
+
+
+
+
+# Experiment 2 - Testing Stage - Varied vs. Constant identity - trained position for constant, novel for varied
+```{r}
+sum.variedVsNovelIden <- variedVsNovelIden  %>%
+  group_by(sbjCode,conditType,positionX) %>% 
+  summarise(MeanTargetDev=mean(AbsDistFromCenter,trim=.05),MeanScaledDev=mean(scaledDev,trim=.05)) %>% as.data.frame()
+
+sum.variedVsNovelIden2 <- sum.variedVsNovelIden %>%
+  group_by(sbjCode,conditType) %>% 
+  summarise(MeanTargetDev=mean(MeanTargetDev,trim=.05),MeanScaledDev=mean(MeanScaledDev))%>% as.data.frame()
+
+# manuscript analysis
+mi4=sum.variedVsNovelIden2 %>% anova_test(dv=MeanScaledDev,between=conditType,wid=sbjCode,type=3);show(mi4)
+
+
+cnames=c("Condition","400","625","675","900","")
+test=sum.variedVsNovelIden %>% rename(Condition="conditType") %>% group_by(Condition,positionX) %>% 
+  summarise(Mean=round(mean(MeanTargetDev),2),sd=round(sd(MeanTargetDev),2)) 
+test=test %>% group_by(Condition) %>% mutate(GroupAvg=round(mean(Mean),2),groupSd=round(sd(Mean),2))
+test = test %>% mutate(msd=paste(Mean,"(",sd,")",sep=""),gsd=paste(GroupAvg,"(",groupSd,")",sep="")) %>% select(Condition,positionX,msd,gsd)%>%pivot_wider(names_from = positionX,values_from=c(msd,gsd))
+test=test[,1:6] %>% as.data.frame()
+colnames(test) <- cnames
+stargazer(test,type="text",summary=FALSE,rownames=FALSE)
+
+
+# manuscript plot
+sum.variedVsNovelIden %>% ggplot(aes(x=positionX,y=MeanTargetDev,group=conditType,fill=conditType))+geom_bar(stat="summary",position=dodge,fun.y="mean")+ stat_summary(fun.data=mean_se,geom="errorbar",position=dodge,width=.5)+ylab("Mean Distance From Center Of Target") +xlab("Testing Location")+theme(plot.title = element_text(hjust = 0.5))+guides(fill=guide_legend(title="Training Condition"))+theme(legend.title.align=.25)
+ 
+```
+
+
+
+
+
+### re-doing experiment 2 comparisons while controlling for similarity (1c) ###
+
+
+# effect of similarity
+```{r}
+dSim <- readRDS("data/IGAS_Similarity-Performance.rds") %>% rename(positionX=pos)
+transferSim <- merge(exp2.Test,dSim,by=c("sbjCode","conditType","positionX")) %>% as.data.frame()
+transferSim2 <- transferSim %>% ungroup() %>% 
+  group_by(sbjCode,conditType) %>% summarise(MeanTargetDeviance=mean(MeanTargetDeviance),MeanScaledDev=mean(MeanScaledDev),sim_c=mean(sim_c)) %>% ungroup() %>% as.data.frame()
+
+lm.sim=dSim %>% lm(dev ~ sim_c, data=.);summary(lm.sim)
+
+```
+
+
+# general comparison - with similarity
+```{r}
+
+
+m6=transferSim2 %>% anova_test(dv=MeanScaledDev,between=conditType,covariate=sim_c,wid=sbjCode,type=3);show(m6)
+
+
+```
+
+
+## varied vs constant identity - (not 500 or 800) - while controlling for sim ##
+```{r}
+
+sum.variedVsNovelIden <- variedVsNovelIden %>% 
+  group_by(sbjCode,conditType,positionX) %>% 
+  summarise(MeanTargetDev=mean(AbsDistFromCenter,trim=.05),MeanScaledDev=mean(scaledDev,trim=.05)) 
+
+idenSimPos <- merge(sum.variedVsNovelIden,dSim,by=c("sbjCode","conditType","positionX")) %>% group_by(sbjCode,conditType,positionX) %>%summarise(MeanTargetDev=mean(MeanTargetDev),MeanScaledDev=mean(MeanScaledDev),sim_c=mean(sim_c),sim_cvcc=mean(sim_cvcc)) %>%ungroup() %>% as.data.frame()
+
+idenSim <- idenSimPos %>% group_by(sbjCode,conditType) %>%
+  summarise(MeanTargetDev=mean(MeanTargetDev),MeanScaledDev=mean(MeanScaledDev),sim_c=mean(sim_c),sim_cvcc=mean(sim_cvcc)) %>%ungroup() %>% as.data.frame()
+
+m8 <- idenSim %>% anova_test(dv=MeanScaledDev,between=conditType,wid=sbjCode,covariate = sim_c,type=3);show(m8)
+
+
+```
+
+
+
+
+
+
+
+
+# plots of task and solution space
+```{r}
+
+library("RColorBrewer")
+
+taskspace <- e2 %>% filter(AbsDistFromCenter<900)
+taskspace$hitOrMiss <- ifelse(taskspace$trialType==11,"Hit Target","Missed Target")
+taskspace %>% ggplot(aes(x=X_Velocity,y=Y_Velocity)) + geom_point(aes(colour=trialType2),alpha=0.5) + ggtitle(" Experiment 2. Example of full task space - Position 900")
+
+
+taskspace %>% ggplot(aes(x=X_Velocity,y=Y_Velocity)) + geom_point(aes(colour=hitOrMiss),alpha=0.5) 
+
+
+solSpace <- e2 %>% filter(trialType==11)
+#solSpace %>% ggplot(aes(x=X_Velocity,y=Y_Velocity)) + geom_point(aes(colour=ThrowPosition),alpha=0.58) + ggtitle("") 
+
+solSpace$Result = ifelse(solSpace$ThrowPosition==400,"400",solSpace$ThrowPosition)
+solSpace$Result = ifelse(solSpace$ThrowPosition==500,"500",solSpace$Result)
+solSpace$Result= ifelse(solSpace$ThrowPosition==625,"625",solSpace$Result)
+solSpace$Result = ifelse(solSpace$ThrowPosition==675,"675",solSpace$Result)
+solSpace$Result = ifelse(solSpace$ThrowPosition==800,"800",solSpace$Result)
+solSpace$Result = ifelse(solSpace$ThrowPosition==900,"900",solSpace$Result)
+
+
+missSpace <- e2 %>% filter(trialType !=11)
+missSpace$Result = "Missed Target"
+solSpace$Result <- solSpace$Result
+
+# the usual method of changing the legend title does not seem to work after the colours are manually scaled. 
+
+# multiplied velocoties by -1 to make the axes less confusing
+solSpace %>% ggplot(aes(x=X_Velocity*-1,y=Y_Velocity*-1)) + geom_point(aes(colour=Result),alpha=0.6) + scale_color_manual(values =brewer.pal(n=6,name="Set1"))+labs(colour="Target Hit Thrown from Position:") + xlab("X Release Velocity") + ylab("Y Release Velocity")
+
+
+fullSpace <- rbind(missSpace,solSpace)
+
+fullSpace %>% ggplot(aes(x=X_Velocity*-1,y=Y_Velocity*-1,colour=Result)) + geom_point(aes(),alpha=0.6) + scale_color_manual(values =brewer.pal(n=7,name="Set1"))+labs(colour="Target Hit or Miss From Position:") + xlab("X Release Velocity") + ylab("Y Release Velocity") 
+
+
+
+
+
+
+
+
+```
+
+
+
+
+
+
+
+
